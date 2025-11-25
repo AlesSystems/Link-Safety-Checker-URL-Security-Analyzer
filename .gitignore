@@ -1,0 +1,183 @@
+# Link Safety Checker - URL Security Analyzer
+# Basic .gitignore file
+
+# =========================
+# Operating System Files
+# =========================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# =========================
+# IDE and Editor Files
+# =========================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.vim
+Session.vim
+
+# Emacs
+\#*\#
+.emacs.desktop
+.emacs.desktop.lock
+
+# =========================
+# Dependency Directories
+# =========================
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+.env
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Go
+vendor/
+go.sum
+
+# =========================
+# Build Outputs
+# =========================
+
+# General
+build/
+dist/
+out/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Compiled binaries
+bin/
+*.o
+*.a
+*.obj
+
+# =========================
+# Test and Coverage
+# =========================
+
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output/
+htmlcov/
+.coverage
+.coverage.*
+
+# Test outputs
+test-results/
+*.test
+
+# =========================
+# Logs and Databases
+# =========================
+
+# Logs
+logs/
+*.log
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Environment and Secrets
+# =========================
+
+# Environment variables
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# =========================
+# Temporary Files
+# =========================
+
+# Temp directories
+tmp/
+temp/
+.tmp/
+
+# Cache
+.cache/
+*.cache
+
+# =========================
+# Documentation Build
+# =========================
+
+# Generated docs
+docs/_build/
+site/
+
+# =========================
+# Project Specific
+# =========================
+
+# Analysis results (if storing locally)
+analysis_results/
+reports/
+
+# User configuration (if any)
+config.local.*
