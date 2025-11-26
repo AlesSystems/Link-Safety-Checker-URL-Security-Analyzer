@@ -1,5 +1,11 @@
 """Interactive script to test Google Safe Browsing API with real URLs."""
 import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import src
+parent_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_dir))
+
 from src.api_client import check_url_safety, APIKeyError, RateLimitError, NetworkError, SafeBrowsingAPIError
 from src.response_parser import parse_safe_browsing_response
 from src.config import GOOGLE_SAFE_BROWSING_API_KEY
