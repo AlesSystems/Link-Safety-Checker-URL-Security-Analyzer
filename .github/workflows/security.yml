@@ -65,7 +65,7 @@ jobs:
           cat bandit-report.json | python -c "import sys, json; data=json.load(sys.stdin); print(f'Issues found: {len(data.get(\"results\", []))}'); [print(f'  - {r[\"filename\"]}:{r[\"line_number\"]}: {r[\"issue_text\"]}') for r in data.get('results', [])]" || bandit -r src/ -ll
 
       - name: Upload Bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: bandit-report
