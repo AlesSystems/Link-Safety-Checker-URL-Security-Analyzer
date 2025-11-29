@@ -21,25 +21,30 @@ This project is designed to help users identify potentially malicious URLs befor
 
 ## ✨ Features
 
-- **URL Pattern Analysis**: Detects suspicious patterns commonly found in phishing and malicious URLs
-- **Structure Validation**: Checks for unsafe URL structures and malformed components
-- **Redirect Detection**: Identifies potential redirect chains that may lead to malicious sites
-- **Domain Analysis**: Examines domain names for suspicious characteristics
-- **IP Address Detection**: Flags URLs using raw IP addresses instead of domain names
-- **Special Character Detection**: Identifies excessive use of special characters often used in obfuscation
-- **URL Length Analysis**: Flags unusually long URLs that may indicate malicious intent
-- **Subdomain Analysis**: Detects excessive subdomains often used in phishing attacks
+- **Desktop GUI Interface**: User-friendly graphical interface built with Tkinter
+- **Real-time URL Analysis**: Powered by Google Safe Browsing API v4
+- **Threat Detection**: Identifies MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, and POTENTIALLY_HARMFUL_APPLICATION
+- **Color-Coded Results**: Visual feedback with green (safe), yellow (suspicious), and red (dangerous) indicators
+- **Error Handling**: Comprehensive error messages for API issues, network problems, and configuration errors
+- **Background Processing**: Non-blocking UI with threaded API calls
+- **Multiple Entry Points**: Both GUI and CLI interfaces available
 
 ## 🛠️ How It Works
 
-The URL Safety Checker analyzes URLs using the following heuristics:
+The URL Safety Checker integrates with Google Safe Browsing API to provide real-time threat analysis:
 
-1. **Protocol Check**: Verifies if the URL uses secure protocols (HTTPS vs HTTP)
-2. **Domain Reputation**: Checks against known suspicious domain patterns
-3. **Path Analysis**: Examines URL paths for suspicious keywords and patterns
-4. **Query String Inspection**: Analyzes query parameters for potential injection attempts
-5. **Encoding Detection**: Identifies URL encoding that may be used to hide malicious content
-6. **Homograph Detection**: Checks for characters that look similar to legitimate domain characters
+1. **User Input**: Enter a URL through the GUI or command line
+2. **API Request**: The application sends the URL to Google Safe Browsing API v4
+3. **Threat Analysis**: Google's database checks for known threats:
+   - MALWARE: Sites that install malicious software
+   - SOCIAL_ENGINEERING: Phishing sites that trick users
+   - UNWANTED_SOFTWARE: Sites that host unwanted applications
+   - POTENTIALLY_HARMFUL_APPLICATION: Sites with potentially risky content
+4. **Result Classification**: The response is parsed and classified as:
+   - **Safe**: No threats detected
+   - **Suspicious**: Potentially harmful applications detected
+   - **Dangerous**: Malware, phishing, or unwanted software detected
+5. **Display**: Results are shown with color-coded visual feedback
 
 ## 📦 Requirements
 
@@ -62,9 +67,10 @@ The URL Safety Checker analyzes URLs using the following heuristics:
 
 ### Technical Requirements
 
-- Modern web browser or command-line interface
-- No external API dependencies for basic functionality
-- Cross-platform compatibility
+- Python 3.7 or higher
+- tkinter (included in standard Python distribution)
+- Internet connection for API calls
+- Google Safe Browsing API key (free tier available)
 
 ## 🚀 Installation
 
@@ -78,15 +84,45 @@ git clone https://github.com/AlesSystems/Link-Safety-Checker-URL-Security-Analyz
 cd Link-Safety-Checker-URL-Security-Analyzer
 ```
 
-3. Follow language-specific setup instructions (to be added based on implementation)
+3. Install required dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure your Google Safe Browsing API key:
+   - Copy `.env.example` to `.env`
+   - Add your API key: `GOOGLE_SAFE_BROWSING_API_KEY=your_key_here`
+   - Get a free API key from [Google Cloud Console](https://console.cloud.google.com/)
+
+5. Run the application:
+```bash
+python src/gui.py
+```
 
 ## 📖 Usage
 
-### Basic Usage
+### GUI Application (Recommended)
 
+Launch the graphical user interface:
+
+```bash
+python src/gui.py
 ```
-# Example usage (syntax depends on implementation)
-check-url "https://example.com/path?query=value"
+
+The GUI provides an intuitive interface where you can:
+1. Paste or type a URL in the input field
+2. Click "Analyze Link" or press Enter
+3. View the safety status with color-coded results:
+   - ✅ **Safe** (Green): No threats detected
+   - ⚠️ **Suspicious** (Yellow): Potential threats, proceed with caution
+   - ⛔ **DANGEROUS** (Red): Do NOT visit this link
+
+### Command Line Usage
+
+You can also use the example script for batch processing:
+
+```bash
+python example.py
 ```
 
 ### Expected Output
@@ -94,33 +130,29 @@ check-url "https://example.com/path?query=value"
 ```
 URL: https://example.com/path?query=value
 Status: SAFE ✅
-Risk Score: 0/100
 Details:
-  - Protocol: HTTPS (Secure)
-  - Domain: Legitimate pattern
-  - Path: No suspicious keywords
-  - Query: Clean parameters
+  - No threats detected
+  - Checked at: 2024-11-27T10:30:00Z
 ```
 
 ## 🚦 Security Classifications
 
-| Classification | Description | Risk Score |
-|----------------|-------------|------------|
-| **Safe** ✅ | URL appears legitimate with no suspicious indicators | 0-30 |
-| **Suspicious** ⚠️ | URL contains some concerning patterns, proceed with caution | 31-70 |
-| **Potentially Dangerous** 🚫 | URL shows strong indicators of malicious intent | 71-100 |
+| Classification | Description | Threat Types |
+|----------------|-------------|--------------|
+| **Safe** ✅ | URL appears legitimate with no threats detected | None |
+| **Suspicious** ⚠️ | URL contains potentially harmful applications | POTENTIALLY_HARMFUL_APPLICATION |
+| **Dangerous** 🚫 | URL contains known malicious content | MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE |
 
-### Common Risk Indicators
+### Threat Types Detected
 
-- Use of IP address instead of domain name
-- Presence of @ symbol in URL (credential injection)
-- Excessive subdomains (e.g., login.secure.bank.suspicious.com)
-- Known phishing keywords (login, secure, verify, update, account)
-- URL shortener services
-- Misspelled common domain names (homograph attacks)
-- Non-standard port numbers
-- Excessive URL length
-- Multiple redirects in query parameters
+- **MALWARE**: Sites that install malicious software on your device
+- **SOCIAL_ENGINEERING**: Phishing sites designed to trick users into revealing sensitive information
+- **UNWANTED_SOFTWARE**: Sites that host applications with deceptive behavior
+- **POTENTIALLY_HARMFUL_APPLICATION**: Sites with applications that may be risky
+
+### API Integration
+
+This tool uses **Google Safe Browsing API v4**, which protects over 4 billion devices daily. The API checks URLs against Google's constantly updated list of unsafe web resources.
 
 ## 🤝 Contributing
 
