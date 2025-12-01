@@ -1,6 +1,6 @@
 """Graphical User Interface for Link Safety Checker."""
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import threading
 import sys
 from pathlib import Path
@@ -13,6 +13,8 @@ from src.api_client import check_url_safety, APIKeyError, RateLimitError, Networ
 from src.response_parser import parse_safe_browsing_response
 from src.url_analyzer import analyze_url_complete
 from src.gui_history import ScanHistory
+from src.gui_export import ExportManager
+from src.url_validator import URLValidator, URLValidationResult
 
 # Try to import pyperclip, fallback to tkinter clipboard if not available
 try:
@@ -36,6 +38,20 @@ class LinkSafetyCheckerGUI:
         # Initialize history manager
         self.history = ScanHistory()
         self.current_result = None  # Store current result for copying
+        
+        # Batch mode variables
+        self.batch_mode = False
+        self.batch_results = []
+        self.batch_processing = False
+        self.cancel_batch = False
+        
+        # Recent URLs (for dropdown - Feature 9)
+        self.recent_urls = []
+        self.recent_urls_dropdown_visible = False
+        
+        # URL validation
+        self.validator = URLValidator()
+        self.validation_result = None
         
         # Modern gradient background colors
         self.bg_gradient_top = "#0f2027"
@@ -197,6 +213,11 @@ class LinkSafetyCheckerGUI:
         self.url_entry.bind('<Return>', lambda e: self.analyze_url())
         self.url_entry.bind('<FocusIn>', self.on_entry_focus)
         self.url_entry.bind('<FocusOut>', self.on_entry_unfocus)
+        # Feature 8: Real-time URL validation
+        self.url_var.trace('w', self.on_url_change)
+        
+        # Load recent URLs from history
+        self.load_recent_urls()
         
         # Button row (Copy URL and Clear buttons)
         button_row = tk.Frame(input_card, bg="#1a1a2e")
@@ -236,6 +257,109 @@ class LinkSafetyCheckerGUI:
         )
         self.clear_button.pack(side=tk.LEFT)
         
+        # Mode toggle button (Feature 6 - Batch mode)
+        self.mode_toggle_button = tk.Button(
+            button_row,
+            text="📊 Batch Mode",
+            command=self.toggle_batch_mode,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#00d4ff",
+            activebackground="#00d4ff",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=15,
+            pady=8,
+            borderwidth=0
+        )
+        self.mode_toggle_button.pack(side=tk.RIGHT)
+        
+        # URL validation indicator (Feature 8)
+        self.validation_indicator = tk.Label(
+            input_card,
+            text="",
+            font=("Segoe UI", 10),
+            bg="#1a1a2e",
+            fg="#b8b8d1"
+        )
+        self.validation_indicator.pack(fill=tk.X, padx=25, pady=(0, 10))
+        
+        # Batch input frame (Feature 6) - hidden by default
+        self.batch_input_frame = tk.Frame(input_card, bg="#1a1a2e")
+        
+        batch_label = tk.Label(
+            self.batch_input_frame,
+            text="📋 Enter URLs (one per line):",
+            font=("Segoe UI", 11, "bold"),
+            bg="#1a1a2e",
+            fg="#00d4ff"
+        )
+        batch_label.pack(pady=(10, 5), padx=25, anchor=tk.W)
+        
+        # Scrolled text for batch input
+        batch_text_frame = tk.Frame(self.batch_input_frame, bg="#1a1a2e")
+        batch_text_frame.pack(fill=tk.BOTH, expand=True, padx=25, pady=(0, 10))
+        
+        self.batch_text = scrolledtext.ScrolledText(
+            batch_text_frame,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#ffffff",
+            insertbackground="#00d4ff",
+            relief=tk.FLAT,
+            height=8,
+            wrap=tk.WORD
+        )
+        self.batch_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Recent URLs dropdown button (Feature 9)
+        self.recent_urls_button = tk.Button(
+            entry_frame,
+            text="▼",
+            command=self.toggle_recent_urls_dropdown,
+            font=("Segoe UI", 8),
+            bg="#2d2d44",
+            fg="#00d4ff",
+            activebackground="#00d4ff",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            width=2
+        )
+        self.recent_urls_button.place(relx=0.98, rely=0.5, anchor=tk.E)
+        
+        # Recent URLs dropdown listbox (Feature 9) - hidden by default
+        self.recent_urls_listbox_frame = tk.Frame(
+            input_card,
+            bg="#2d2d44",
+            relief=tk.FLAT,
+            highlightthickness=1,
+            highlightbackground="#00d4ff"
+        )
+        
+        recent_scroll = tk.Scrollbar(self.recent_urls_listbox_frame)
+        recent_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.recent_urls_listbox = tk.Listbox(
+            self.recent_urls_listbox_frame,
+            font=("Segoe UI", 9),
+            bg="#2d2d44",
+            fg="#ffffff",
+            selectbackground="#00d4ff",
+            selectforeground="#1a1a2e",
+            relief=tk.FLAT,
+            height=6,
+            yscrollcommand=recent_scroll.set
+        )
+        self.recent_urls_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        recent_scroll.config(command=self.recent_urls_listbox.yview)
+        
+        self.recent_urls_listbox.bind('<<ListboxSelect>>', self.on_recent_url_select)
+        
+        # Clear history option in recent URLs
+        self.recent_urls_listbox.bind('<Button-3>', self.show_recent_urls_context_menu)
+        
         # Bind keyboard shortcuts
         self.root.bind('<Control-l>', lambda e: self.clear_all())
         self.root.bind('<Escape>', lambda e: self.clear_all())
@@ -259,7 +383,41 @@ class LinkSafetyCheckerGUI:
             pady=15,
             borderwidth=0
         )
-        self.analyze_button.pack()
+        self.analyze_button.pack(side=tk.LEFT, padx=5)
+        
+        # Batch analyze button (Feature 6) - hidden by default
+        self.batch_analyze_button = tk.Button(
+            button_frame,
+            text="📊  ANALYZE BATCH",
+            command=self.analyze_batch,
+            font=("Segoe UI", 14, "bold"),
+            bg="#00d4ff",
+            fg="#0f2027",
+            activebackground="#00ff88",
+            activeforeground="#0f2027",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=40,
+            pady=15,
+            borderwidth=0
+        )
+        
+        # Cancel batch button (Feature 6) - hidden by default
+        self.cancel_batch_button = tk.Button(
+            button_frame,
+            text="⛔ CANCEL",
+            command=self.cancel_batch_processing,
+            font=("Segoe UI", 12, "bold"),
+            bg="#ff6b6b",
+            fg="#ffffff",
+            activebackground="#ff3366",
+            activeforeground="#ffffff",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=30,
+            pady=15,
+            borderwidth=0
+        )
         
         # Add hover effects
         self.analyze_button.bind('<Enter>', self.on_button_hover)
@@ -381,6 +539,105 @@ class LinkSafetyCheckerGUI:
         )
         # Don't pack initially, will be shown after scan
         
+        # Export button (Feature 7) - initially hidden
+        self.export_button = tk.Button(
+            self.result_card,
+            text="📤 Export Result",
+            command=self.export_result,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#00ff88",
+            activebackground="#00ff88",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            borderwidth=0
+        )
+        
+        # Batch results frame (Feature 6) - hidden by default
+        self.batch_results_frame = tk.Frame(
+            self.result_card,
+            bg="#1a1a2e"
+        )
+        
+        batch_results_label = tk.Label(
+            self.batch_results_frame,
+            text="📊 Batch Scan Results",
+            font=("Segoe UI", 14, "bold"),
+            bg="#1a1a2e",
+            fg="#00d4ff"
+        )
+        batch_results_label.pack(pady=(10, 5))
+        
+        # Summary stats frame
+        self.batch_summary_frame = tk.Frame(
+            self.batch_results_frame,
+            bg="#2d2d44",
+            relief=tk.FLAT
+        )
+        self.batch_summary_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        self.batch_summary_label = tk.Label(
+            self.batch_summary_frame,
+            text="",
+            font=("Segoe UI", 11),
+            bg="#2d2d44",
+            fg="#ffffff",
+            justify=tk.LEFT
+        )
+        self.batch_summary_label.pack(pady=10, padx=15)
+        
+        # Progress label
+        self.batch_progress_label = tk.Label(
+            self.batch_results_frame,
+            text="",
+            font=("Segoe UI", 10, "italic"),
+            bg="#1a1a2e",
+            fg="#ffd700"
+        )
+        self.batch_progress_label.pack(pady=5)
+        
+        # Batch results list with scrollbar
+        batch_scroll_frame = tk.Frame(self.batch_results_frame, bg="#1a1a2e")
+        batch_scroll_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        batch_scrollbar = tk.Scrollbar(batch_scroll_frame)
+        batch_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.batch_results_listbox = tk.Listbox(
+            batch_scroll_frame,
+            font=("Consolas", 10),
+            bg="#2d2d44",
+            fg="#ffffff",
+            selectbackground="#00d4ff",
+            selectforeground="#0f2027",
+            relief=tk.FLAT,
+            height=12,
+            yscrollcommand=batch_scrollbar.set
+        )
+        self.batch_results_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        batch_scrollbar.config(command=self.batch_results_listbox.yview)
+        
+        # Export batch button
+        self.export_batch_button = tk.Button(
+            self.batch_results_frame,
+            text="📤 Export Batch Results",
+            command=self.export_batch_results,
+            font=("Segoe UI", 11, "bold"),
+            bg="#00ff88",
+            fg="#0f2027",
+            activebackground="#00d4ff",
+            activeforeground="#0f2027",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=30,
+            pady=12,
+            borderwidth=0
+        )
+        self.export_batch_button.pack(pady=15)
+        
         # Modern status bar
         self.status_label = tk.Label(
             root,
@@ -442,6 +699,7 @@ class LinkSafetyCheckerGUI:
         self.details_label.config(text="", fg="#b8b8d1")
         self.result_card.config(highlightbackground="#2d2d44")
         self.copy_result_button.pack_forget()  # Hide copy result button
+        self.export_button.pack_forget()  # Hide export button
         self.timestamp_label.pack_forget()  # Hide timestamp
         self.view_details_button.pack_forget()  # Hide view details button
         self.threat_details_frame.pack_forget()  # Hide threat details
@@ -790,8 +1048,11 @@ Scanned: {timestamp}"""
         # Show view details button
         self.view_details_button.pack(pady=(0, 10))
         
-        # Show copy result button
-        self.copy_result_button.pack(pady=(0, 20))
+        # Show copy result button and export button
+        button_row = tk.Frame(self.result_card, bg="#1a1a2e")
+        button_row.pack(pady=(0, 20))
+        self.copy_result_button.pack(in_=button_row, side=tk.LEFT, padx=5)
+        self.export_button.pack(in_=button_row, side=tk.LEFT, padx=5)
     
     def display_error(self, error_message):
         """Display error message with modern styling."""
@@ -860,6 +1121,10 @@ Scanned: {timestamp}"""
         # Get URL
         url = self.url_var.get().strip()
         
+        # Feature 8: Auto-format URL
+        url = self.validator.format_url(url)
+        self.url_var.set(url)
+        
         # Clear previous results
         self.clear_results()
         
@@ -870,6 +1135,419 @@ Scanned: {timestamp}"""
         # Run analysis in background thread to prevent UI freezing
         thread = threading.Thread(target=self.analyze_url_thread, args=(url,), daemon=True)
         thread.start()
+    
+    # Feature 6: Batch mode methods
+    def toggle_batch_mode(self):
+        """Toggle between single and batch mode."""
+        self.batch_mode = not self.batch_mode
+        
+        if self.batch_mode:
+            # Switch to batch mode
+            self.mode_toggle_button.config(text="🔗 Single Mode", bg="#ffd700")
+            self.url_entry.pack_forget()
+            self.recent_urls_button.place_forget()
+            self.recent_urls_listbox_frame.pack_forget()
+            self.validation_indicator.pack_forget()
+            self.batch_input_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+            self.analyze_button.pack_forget()
+            self.batch_analyze_button.pack(side=tk.LEFT, padx=5)
+            self.clear_results()
+        else:
+            # Switch to single mode
+            self.mode_toggle_button.config(text="📊 Batch Mode", bg="#2d2d44")
+            self.batch_input_frame.pack_forget()
+            self.url_entry.pack(fill=tk.X, ipady=12, ipadx=10)
+            self.recent_urls_button.place(relx=0.98, rely=0.5, anchor=tk.E)
+            self.validation_indicator.pack(fill=tk.X, padx=25, pady=(0, 10))
+            self.batch_analyze_button.pack_forget()
+            self.cancel_batch_button.pack_forget()
+            self.analyze_button.pack(side=tk.LEFT, padx=5)
+            self.clear_results()
+            self.batch_results_frame.pack_forget()
+    
+    def analyze_batch(self):
+        """Start batch URL analysis."""
+        # Get URLs from text area
+        text_content = self.batch_text.get("1.0", tk.END).strip()
+        if not text_content:
+            messagebox.showwarning("Input Required", "Please enter URLs to analyze (one per line).")
+            return
+        
+        # Parse URLs
+        urls = [line.strip() for line in text_content.split('\n') if line.strip()]
+        
+        if not urls:
+            messagebox.showwarning("Input Required", "No valid URLs found.")
+            return
+        
+        # Clear previous results
+        self.batch_results = []
+        self.cancel_batch = False
+        self.batch_results_listbox.delete(0, tk.END)
+        
+        # Show batch results frame
+        self.result_icon.config(text="")
+        self.result_label.config(text="")
+        self.details_label.config(text="")
+        self.batch_results_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        # Disable controls
+        self.batch_text.config(state=tk.DISABLED)
+        self.batch_analyze_button.pack_forget()
+        self.cancel_batch_button.pack(side=tk.LEFT, padx=5)
+        self.mode_toggle_button.config(state=tk.DISABLED)
+        self.batch_processing = True
+        
+        # Start batch processing in background
+        thread = threading.Thread(target=self.process_batch_urls, args=(urls,), daemon=True)
+        thread.start()
+    
+    def process_batch_urls(self, urls):
+        """Process multiple URLs sequentially."""
+        total = len(urls)
+        
+        for i, url in enumerate(urls, 1):
+            if self.cancel_batch:
+                self.root.after(0, lambda: self.set_status("Batch processing cancelled", "#ff6b6b"))
+                break
+            
+            # Update progress
+            progress_text = f"Processing {i}/{total}..."
+            self.root.after(0, lambda t=progress_text: self.batch_progress_label.config(text=t))
+            self.root.after(0, lambda: self.set_status(f"Analyzing URL {i}/{total}...", "#ffd700"))
+            
+            try:
+                # Format URL
+                formatted_url = self.validator.format_url(url)
+                
+                # Analyze URL
+                verdict = analyze_url_complete(formatted_url)
+                
+                # Extract data
+                status = verdict.verdict if hasattr(verdict, 'verdict') else verdict.status
+                threat_types = []
+                if hasattr(verdict, 'api_data') and 'threat_types' in verdict.api_data:
+                    threat_types = verdict.api_data.get('threat_types', [])
+                
+                rule_score = verdict.rule_based_score.get('total_score', 0) if hasattr(verdict, 'rule_based_score') else 0
+                
+                # Store result
+                result = {
+                    'url': formatted_url,
+                    'status': status,
+                    'threat_types': threat_types,
+                    'rule_score': rule_score,
+                    'timestamp': datetime.now().isoformat(),
+                    'reasons': verdict.reasons if hasattr(verdict, 'reasons') else []
+                }
+                self.batch_results.append(result)
+                
+                # Save to history
+                self.history.save_scan_to_history(formatted_url, verdict)
+                
+                # Display in listbox
+                status_icons = {"safe": "✅", "suspicious": "⚠️", "dangerous": "🚫"}
+                icon = status_icons.get(status, "❓")
+                display_text = f"{icon} {status.upper()}: {formatted_url[:60]}"
+                self.root.after(0, lambda dt=display_text: self.batch_results_listbox.insert(tk.END, dt))
+                
+            except Exception as e:
+                error_result = {
+                    'url': url,
+                    'status': 'error',
+                    'threat_types': [],
+                    'rule_score': 0,
+                    'timestamp': datetime.now().isoformat(),
+                    'reasons': [f"Error: {str(e)}"]
+                }
+                self.batch_results.append(error_result)
+                error_text = f"❌ ERROR: {url[:60]}"
+                self.root.after(0, lambda et=error_text: self.batch_results_listbox.insert(tk.END, et))
+        
+        # Update summary
+        self.root.after(0, self.update_batch_summary)
+        self.root.after(0, self.finish_batch_processing)
+    
+    def update_batch_summary(self):
+        """Update batch summary statistics."""
+        total = len(self.batch_results)
+        safe = sum(1 for r in self.batch_results if r['status'] == 'safe')
+        suspicious = sum(1 for r in self.batch_results if r['status'] == 'suspicious')
+        dangerous = sum(1 for r in self.batch_results if r['status'] == 'dangerous')
+        errors = sum(1 for r in self.batch_results if r['status'] == 'error')
+        
+        summary_text = f"""Total URLs: {total}
+✅ Safe: {safe}
+⚠️ Suspicious: {suspicious}
+🚫 Dangerous: {dangerous}"""
+        if errors > 0:
+            summary_text += f"\n❌ Errors: {errors}"
+        
+        self.batch_summary_label.config(text=summary_text)
+        self.batch_progress_label.config(text="✓ Batch processing complete!", fg="#00ff88")
+        self.set_status(f"Batch complete: {total} URLs scanned", "#00ff88")
+        self.refresh_history()
+    
+    def finish_batch_processing(self):
+        """Clean up after batch processing."""
+        self.batch_processing = False
+        self.batch_text.config(state=tk.NORMAL)
+        self.cancel_batch_button.pack_forget()
+        self.batch_analyze_button.pack(side=tk.LEFT, padx=5)
+        self.mode_toggle_button.config(state=tk.NORMAL)
+    
+    def cancel_batch_processing(self):
+        """Cancel ongoing batch processing."""
+        self.cancel_batch = True
+        self.batch_progress_label.config(text="Cancelling...", fg="#ff6b6b")
+    
+    # Feature 7: Export methods
+    def export_result(self):
+        """Export current scan result."""
+        if not self.current_result:
+            messagebox.showwarning("No Result", "No scan result available to export.")
+            return
+        
+        # Ask for export format
+        format_window = tk.Toplevel(self.root)
+        format_window.title("Select Export Format")
+        format_window.geometry("300x200")
+        format_window.resizable(False, False)
+        format_window.configure(bg="#1a1a2e")
+        format_window.transient(self.root)
+        format_window.grab_set()
+        
+        tk.Label(
+            format_window,
+            text="Select Export Format:",
+            font=("Segoe UI", 12, "bold"),
+            bg="#1a1a2e",
+            fg="#ffffff"
+        ).pack(pady=20)
+        
+        def export_as(fmt):
+            format_window.destroy()
+            self._perform_export(fmt)
+        
+        btn_frame = tk.Frame(format_window, bg="#1a1a2e")
+        btn_frame.pack(expand=True)
+        
+        for fmt, label in [('json', '📄 JSON'), ('csv', '📊 CSV'), ('txt', '📝 TXT')]:
+            tk.Button(
+                btn_frame,
+                text=label,
+                command=lambda f=fmt: export_as(f),
+                font=("Segoe UI", 11),
+                bg="#00d4ff",
+                fg="#0f2027",
+                cursor="hand2",
+                relief=tk.FLAT,
+                padx=30,
+                pady=10,
+                width=12
+            ).pack(pady=5)
+    
+    def _perform_export(self, format_type):
+        """Perform the actual export operation."""
+        # File dialog
+        extensions = {
+            'json': [("JSON files", "*.json")],
+            'csv': [("CSV files", "*.csv")],
+            'txt': [("Text files", "*.txt")]
+        }
+        
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=f".{format_type}",
+            filetypes=extensions.get(format_type, [("All files", "*.*")])
+        )
+        
+        if not filepath:
+            return
+        
+        # Prepare export data
+        export_data = {
+            'url': self.url_var.get().strip(),
+            'status': self.current_result['status'],
+            'threat_types': self.current_result['threats'],
+            'timestamp': self.current_result['timestamp'],
+            'rule_score': self.current_result.get('verdict').rule_based_score.get('total_score', 0) if hasattr(self.current_result.get('verdict'), 'rule_based_score') else 0,
+            'reasons': self.current_result.get('verdict').reasons if hasattr(self.current_result.get('verdict'), 'reasons') else []
+        }
+        
+        # Export
+        success = False
+        if format_type == 'json':
+            success = ExportManager.export_to_json(filepath, export_data)
+        elif format_type == 'csv':
+            success = ExportManager.export_to_csv(filepath, export_data)
+        elif format_type == 'txt':
+            success = ExportManager.export_to_txt(filepath, export_data)
+        
+        if success:
+            self.set_status(f"✓ Exported to {format_type.upper()}", "#00ff88")
+            messagebox.showinfo("Export Success", f"Result exported successfully to:\n{filepath}")
+        else:
+            self.set_status("Export failed", "#ff6b6b")
+            messagebox.showerror("Export Error", "Failed to export result. Please try again.")
+    
+    def export_batch_results(self):
+        """Export batch scan results."""
+        if not self.batch_results:
+            messagebox.showwarning("No Results", "No batch results available to export.")
+            return
+        
+        # Ask for export format
+        format_window = tk.Toplevel(self.root)
+        format_window.title("Select Export Format")
+        format_window.geometry("300x200")
+        format_window.resizable(False, False)
+        format_window.configure(bg="#1a1a2e")
+        format_window.transient(self.root)
+        format_window.grab_set()
+        
+        tk.Label(
+            format_window,
+            text="Select Export Format:",
+            font=("Segoe UI", 12, "bold"),
+            bg="#1a1a2e",
+            fg="#ffffff"
+        ).pack(pady=20)
+        
+        def export_as(fmt):
+            format_window.destroy()
+            self._perform_batch_export(fmt)
+        
+        btn_frame = tk.Frame(format_window, bg="#1a1a2e")
+        btn_frame.pack(expand=True)
+        
+        for fmt, label in [('json', '📄 JSON'), ('csv', '📊 CSV'), ('txt', '📝 TXT')]:
+            tk.Button(
+                btn_frame,
+                text=label,
+                command=lambda f=fmt: export_as(f),
+                font=("Segoe UI", 11),
+                bg="#00d4ff",
+                fg="#0f2027",
+                cursor="hand2",
+                relief=tk.FLAT,
+                padx=30,
+                pady=10,
+                width=12
+            ).pack(pady=5)
+    
+    def _perform_batch_export(self, format_type):
+        """Perform batch export operation."""
+        extensions = {
+            'json': [("JSON files", "*.json")],
+            'csv': [("CSV files", "*.csv")],
+            'txt': [("Text files", "*.txt")]
+        }
+        
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=f".{format_type}",
+            filetypes=extensions.get(format_type, [("All files", "*.*")])
+        )
+        
+        if not filepath:
+            return
+        
+        success = ExportManager.export_batch_results(filepath, self.batch_results, format_type)
+        
+        if success:
+            self.set_status(f"✓ Batch exported to {format_type.upper()}", "#00ff88")
+            messagebox.showinfo("Export Success", f"Batch results exported successfully to:\n{filepath}")
+        else:
+            self.set_status("Export failed", "#ff6b6b")
+            messagebox.showerror("Export Error", "Failed to export batch results. Please try again.")
+    
+    # Feature 8: URL validation methods
+    def on_url_change(self, *args):
+        """Handle URL input changes for real-time validation."""
+        url = self.url_var.get().strip()
+        
+        if not url or self.batch_mode:
+            self.validation_indicator.config(text="")
+            return
+        
+        # Validate URL
+        self.validation_result = self.validator.validate_url(url)
+        
+        if self.validation_result.is_valid:
+            if self.validation_result.warnings:
+                # Valid but has warnings
+                warning_text = f"⚠️ Warning: {self.validation_result.warnings[0]}"
+                self.validation_indicator.config(text=warning_text, fg="#ffd700")
+            else:
+                # Completely valid
+                self.validation_indicator.config(text="✓ Valid URL", fg="#00ff88")
+        else:
+            # Invalid URL
+            if self.validation_result.errors:
+                error_text = f"✗ {self.validation_result.errors[0]}"
+                self.validation_indicator.config(text=error_text, fg="#ff6b6b")
+            
+            # Show suggestions if available
+            if self.validation_result.suggestions and len(url) > 3:
+                suggestion_text = f"💡 {self.validation_result.suggestions[0]}"
+                self.validation_indicator.config(text=suggestion_text, fg="#00d4ff")
+    
+    # Feature 9: Recent URLs dropdown methods
+    def load_recent_urls(self):
+        """Load recent URLs from history."""
+        recent_scans = self.history.get_recent_scans(15)
+        self.recent_urls = [scan['url'] for scan in recent_scans]
+    
+    def toggle_recent_urls_dropdown(self):
+        """Toggle recent URLs dropdown visibility."""
+        if self.recent_urls_dropdown_visible:
+            self.recent_urls_listbox_frame.pack_forget()
+            self.recent_urls_button.config(text="▼")
+            self.recent_urls_dropdown_visible = False
+        else:
+            # Refresh recent URLs
+            self.load_recent_urls()
+            
+            # Populate listbox
+            self.recent_urls_listbox.delete(0, tk.END)
+            if self.recent_urls:
+                for url in self.recent_urls:
+                    display_url = url if len(url) <= 50 else url[:47] + "..."
+                    self.recent_urls_listbox.insert(tk.END, display_url)
+            else:
+                self.recent_urls_listbox.insert(tk.END, "(No recent URLs)")
+            
+            # Show dropdown
+            self.recent_urls_listbox_frame.pack(fill=tk.X, padx=25, pady=(0, 10))
+            self.recent_urls_button.config(text="▲")
+            self.recent_urls_dropdown_visible = True
+    
+    def on_recent_url_select(self, event):
+        """Handle selection from recent URLs dropdown."""
+        selection = self.recent_urls_listbox.curselection()
+        if not selection:
+            return
+        
+        index = selection[0]
+        if index < len(self.recent_urls):
+            selected_url = self.recent_urls[index]
+            self.url_var.set(selected_url)
+            self.toggle_recent_urls_dropdown()  # Close dropdown
+    
+    def show_recent_urls_context_menu(self, event):
+        """Show context menu for recent URLs (clear history option)."""
+        menu = tk.Menu(self.root, tearoff=0, bg="#2d2d44", fg="#ffffff")
+        menu.add_command(label="Clear History", command=self.clear_recent_urls_history)
+        menu.post(event.x_root, event.y_root)
+    
+    def clear_recent_urls_history(self):
+        """Clear recent URLs history."""
+        if messagebox.askyesno("Clear History", "Are you sure you want to clear all recent URLs?"):
+            self.history.clear_history()
+            self.recent_urls = []
+            self.recent_urls_listbox.delete(0, tk.END)
+            self.recent_urls_listbox.insert(tk.END, "(No recent URLs)")
+            self.refresh_history()
+            self.set_status("History cleared", "#00ff88")
 
 
 def main():
