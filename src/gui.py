@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.api_client import check_url_safety, APIKeyError, RateLimitError, NetworkError, SafeBrowsingAPIError
 from src.response_parser import parse_safe_browsing_response
+from src.url_analyzer import analyze_url_complete
 
 
 class LinkSafetyCheckerGUI:
@@ -62,7 +63,7 @@ class LinkSafetyCheckerGUI:
         # Glowing subtitle
         subtitle_label = tk.Label(
             header_frame,
-            text="⚡ Powered by Google Safe Browsing API v4 ⚡",
+            text="⚡ API + AI-Powered Rule-Based Analysis ⚡",
             font=("Segoe UI", 11),
             bg=self.bg_gradient_top,
             fg="#00d4ff"
@@ -265,44 +266,61 @@ class LinkSafetyCheckerGUI:
         self.details_label.config(text="", fg="#b8b8d1")
         self.result_card.config(highlightbackground="#2d2d44")
     
-    def display_result(self, result):
-        """Display the safety check result with modern styling."""
-        if result.status == "safe":
+    def display_result(self, verdict):
+        """Display the safety check result with modern styling and rule-based analysis."""
+        status = verdict.verdict if hasattr(verdict, 'verdict') else verdict.status
+        rule_score = verdict.rule_based_score.get('total_score', 0) if hasattr(verdict, 'rule_based_score') else 0
+        
+        if status == "safe":
             self.result_icon.config(text="✅", fg="#00ff88")
             self.result_label.config(
                 text="SAFE TO VISIT",
                 fg="#00ff88"
             )
-            self.details_label.config(
-                text="✓ No threats detected\n✓ Verified by Google Safe Browsing\n✓ This link appears to be legitimate and safe",
-                fg="#00ff88"
-            )
+            details = "✓ No threats detected\n✓ Verified by multiple security checks\n✓ This link appears to be legitimate and safe"
+            if hasattr(verdict, 'rule_based_score'):
+                details += f"\n📊 Risk Score: {rule_score}/100"
+            self.details_label.config(text=details, fg="#00ff88")
             self.result_card.config(highlightbackground="#00ff88")
             
-        elif result.status == "suspicious":
+        elif status == "suspicious":
             self.result_icon.config(text="⚠️", fg="#ffd700")
             self.result_label.config(
                 text="POTENTIALLY SUSPICIOUS",
                 fg="#ffd700"
             )
-            threat_text = f"⚠ Detected: {', '.join(result.threat_types)}"
-            self.details_label.config(
-                text=f"{threat_text}\n⚠ Proceed with extreme caution\n⚠ Consider avoiding this link",
-                fg="#ffd700"
-            )
+            details_parts = []
+            if hasattr(verdict, 'reasons') and verdict.reasons:
+                details_parts.append(f"⚠ {verdict.reasons[0]}")
+            else:
+                threat_types = verdict.api_data.get('threat_types', []) if hasattr(verdict, 'api_data') else verdict.threat_types
+                if threat_types:
+                    details_parts.append(f"⚠ Detected: {', '.join(threat_types)}")
+            details_parts.append("⚠ Proceed with extreme caution")
+            details_parts.append("⚠ Consider avoiding this link")
+            if hasattr(verdict, 'rule_based_score'):
+                details_parts.append(f"📊 Risk Score: {rule_score}/100")
+            self.details_label.config(text="\n".join(details_parts), fg="#ffd700")
             self.result_card.config(highlightbackground="#ffd700")
             
-        elif result.status == "dangerous":
+        elif status == "dangerous":
             self.result_icon.config(text="🚫", fg="#ff3366")
             self.result_label.config(
                 text="⚠️ DANGEROUS - DO NOT VISIT ⚠️",
                 fg="#ff3366"
             )
-            threat_text = f"🚨 Threats: {', '.join(result.threat_types)}"
-            self.details_label.config(
-                text=f"{threat_text}\n🚨 This site may harm your computer\n🚨 DO NOT click or visit this link!",
-                fg="#ff3366"
-            )
+            details_parts = []
+            if hasattr(verdict, 'reasons') and verdict.reasons:
+                details_parts.append(f"🚨 {verdict.reasons[0]}")
+            else:
+                threat_types = verdict.api_data.get('threat_types', []) if hasattr(verdict, 'api_data') else verdict.threat_types
+                if threat_types:
+                    details_parts.append(f"🚨 Threats: {', '.join(threat_types)}")
+            details_parts.append("🚨 This site may harm your computer")
+            details_parts.append("🚨 DO NOT click or visit this link!")
+            if hasattr(verdict, 'rule_based_score'):
+                details_parts.append(f"📊 Risk Score: {rule_score}/100")
+            self.details_label.config(text="\n".join(details_parts), fg="#ff3366")
             self.result_card.config(highlightbackground="#ff3366")
     
     def display_error(self, error_message):
@@ -321,18 +339,15 @@ class LinkSafetyCheckerGUI:
     def analyze_url_thread(self, url):
         """Perform URL analysis in background thread."""
         try:
-            # Call API
+            # Perform complete analysis (API + rules)
             self.root.after(0, lambda: self.set_status(f"Analyzing URL...", "#ffd700"))
-            api_response = check_url_safety(url)
-            
-            # Parse response
-            result = parse_safe_browsing_response(api_response, url)
+            verdict = analyze_url_complete(url)
             
             # Update UI on main thread
-            self.root.after(0, lambda: self.display_result(result))
+            self.root.after(0, lambda: self.display_result(verdict))
             status_colors = {"safe": "#00ff88", "suspicious": "#ffd700", "dangerous": "#ff3366"}
             status_text = {"safe": "Verification complete - Safe", "suspicious": "Verification complete - Suspicious", "dangerous": "Verification complete - Dangerous"}
-            self.root.after(0, lambda: self.set_status(status_text[result.status], status_colors[result.status]))
+            self.root.after(0, lambda: self.set_status(status_text[verdict.verdict], status_colors[verdict.verdict]))
             
         except APIKeyError as e:
             error_msg = "⚠️ API Key Error\n\nPlease configure your Google Safe Browsing API key in the .env file.\nGet your free API key from Google Cloud Console."
