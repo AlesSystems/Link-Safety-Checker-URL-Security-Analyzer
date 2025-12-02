@@ -31,9 +31,15 @@ class LinkSafetyCheckerGUI:
         """Initialize the GUI application."""
         self.root = root
         self.root.title("Link Safety Checker - AlesSystems")
-        self.root.geometry("900x650")
+        # Get screen dimensions for responsive sizing
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        # Use 80% of screen size, with reasonable defaults
+        window_width = max(900, int(screen_width * 0.8))
+        window_height = max(650, int(screen_height * 0.75))
+        self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(True, True)
-        self.root.minsize(850, 600)
+        self.root.minsize(800, 550)
         
         # Initialize history manager
         self.history = ScanHistory()
@@ -68,6 +74,8 @@ class LinkSafetyCheckerGUI:
         # Left panel (main content)
         main_frame = tk.Frame(main_container, bg=self.bg_gradient_mid)
         main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        # Store main_frame reference for dynamic sizing
+        self.main_frame = main_frame
         
         # Right panel (history sidebar)
         history_frame = tk.Frame(main_container, bg="#1a1a2e", width=250, relief=tk.FLAT,
@@ -75,15 +83,38 @@ class LinkSafetyCheckerGUI:
         history_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(10, 0))
         history_frame.pack_propagate(False)
         
-        # History header
+        # History header with clear button
+        history_header_frame = tk.Frame(history_frame, bg="#1a1a2e")
+        history_header_frame.pack(fill=tk.X, pady=(15, 8), padx=10)
+        
         history_header = tk.Label(
-            history_frame,
+            history_header_frame,
             text="📜 Scan History",
             font=("Segoe UI", 12, "bold"),
             bg="#1a1a2e",
             fg="#00d4ff"
         )
-        history_header.pack(pady=(15, 10), padx=10)
+        history_header.pack(side=tk.LEFT)
+        
+        # Clear history button
+        self.clear_history_button = tk.Button(
+            history_header_frame,
+            text="🗑️",
+            command=self.clear_scan_history,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#ff6b6b",
+            activebackground="#ff6b6b",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=8,
+            pady=4,
+            borderwidth=0,
+            anchor=tk.CENTER,
+            justify=tk.CENTER
+        )
+        self.clear_history_button.pack(side=tk.RIGHT)
         
         # History listbox with scrollbar
         history_scroll_frame = tk.Frame(history_frame, bg="#1a1a2e")
@@ -112,51 +143,55 @@ class LinkSafetyCheckerGUI:
         # Load initial history
         self.refresh_history()
         
-        # Animated header section with gradient effect
+        # Compact header section with gradient effect
         header_frame = tk.Frame(main_frame, bg=self.bg_gradient_top, relief=tk.FLAT)
-        header_frame.pack(fill=tk.X, pady=(0, 30))
+        header_frame.pack(fill=tk.X, pady=(0, 15))
         
-        # Large shield icon with modern styling
+        # Shield icon - centered
         icon_label = tk.Label(
             header_frame,
             text="🛡️",
-            font=("Segoe UI Emoji", 60),
+            font=("Segoe UI Emoji", 28),
             bg=self.bg_gradient_top,
             fg="#00d4ff"
         )
-        icon_label.pack(pady=(20, 10))
+        icon_label.pack(anchor=tk.CENTER, pady=(10, 5))
         
-        # Modern title with gradient effect
+        # Title and subtitle in vertical stack - centered
+        title_stack = tk.Frame(header_frame, bg=self.bg_gradient_top)
+        title_stack.pack(anchor=tk.CENTER, pady=(0, 5))
+        
+        # Modern title with gradient effect - smaller font
         title_label = tk.Label(
-            header_frame,
+            title_stack,
             text="Link Safety Checker",
-            font=("Segoe UI", 32, "bold"),
+            font=("Segoe UI", 20, "bold"),
             bg=self.bg_gradient_top,
             fg="#ffffff"
         )
-        title_label.pack(pady=(0, 5))
+        title_label.pack(anchor=tk.CENTER)
         
-        # Glowing subtitle
+        # Glowing subtitle - smaller
         subtitle_label = tk.Label(
-            header_frame,
+            title_stack,
             text="⚡ API + AI-Powered Rule-Based Analysis ⚡",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 9),
             bg=self.bg_gradient_top,
             fg="#00d4ff"
         )
-        subtitle_label.pack(pady=(0, 5))
+        subtitle_label.pack(anchor=tk.CENTER)
         
-        # Organization branding
+        # Organization branding - smaller and centered below subtitle
         brand_label = tk.Label(
             header_frame,
             text="Developed by AlesSystems",
-            font=("Segoe UI", 9, "italic"),
+            font=("Segoe UI", 8, "italic"),
             bg=self.bg_gradient_top,
             fg="#7f8c8d"
         )
-        brand_label.pack(pady=(0, 20))
+        brand_label.pack(anchor=tk.CENTER, pady=(0, 5))
         
-        # Card-style input container
+        # Card-style input container - more compact
         input_card = tk.Frame(
             main_frame,
             bg="#1a1a2e",
@@ -165,11 +200,11 @@ class LinkSafetyCheckerGUI:
             highlightbackground="#00d4ff",
             highlightcolor="#00d4ff"
         )
-        input_card.pack(fill=tk.X, pady=(0, 20))
+        input_card.pack(fill=tk.X, pady=(0, 12))
         
-        # URL label with icon
+        # URL label with icon - more compact
         url_label_frame = tk.Frame(input_card, bg="#1a1a2e")
-        url_label_frame.pack(fill=tk.X, padx=25, pady=(20, 10))
+        url_label_frame.pack(fill=tk.X, padx=20, pady=(12, 8))
         
         url_icon = tk.Label(
             url_label_frame,
@@ -191,7 +226,7 @@ class LinkSafetyCheckerGUI:
         
         # Modern entry field with custom styling
         entry_frame = tk.Frame(input_card, bg="#1a1a2e")
-        entry_frame.pack(fill=tk.X, padx=25, pady=(0, 10))
+        entry_frame.pack(fill=tk.X, padx=20, pady=(0, 8))
         
         self.url_var = tk.StringVar()
         self.url_entry = tk.Entry(
@@ -219,9 +254,9 @@ class LinkSafetyCheckerGUI:
         # Load recent URLs from history
         self.load_recent_urls()
         
-        # Button row (Copy URL and Clear buttons)
+        # Button row (Copy URL and Clear buttons) - more compact
         button_row = tk.Frame(input_card, bg="#1a1a2e")
-        button_row.pack(fill=tk.X, padx=25, pady=(0, 20))
+        button_row.pack(fill=tk.X, padx=20, pady=(0, 12))
         
         self.copy_url_button = tk.Button(
             button_row,
@@ -279,11 +314,11 @@ class LinkSafetyCheckerGUI:
         self.validation_indicator = tk.Label(
             input_card,
             text="",
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             bg="#1a1a2e",
             fg="#b8b8d1"
         )
-        self.validation_indicator.pack(fill=tk.X, padx=25, pady=(0, 10))
+        self.validation_indicator.pack(fill=tk.X, padx=20, pady=(0, 8))
         
         # Batch input frame (Feature 6) - hidden by default
         self.batch_input_frame = tk.Frame(input_card, bg="#1a1a2e")
@@ -364,23 +399,23 @@ class LinkSafetyCheckerGUI:
         self.root.bind('<Control-l>', lambda e: self.clear_all())
         self.root.bind('<Escape>', lambda e: self.clear_all())
         
-        # Modern gradient button with hover effect
+        # Modern gradient button with hover effect - more compact
         button_frame = tk.Frame(main_frame, bg=self.bg_gradient_mid)
-        button_frame.pack(pady=(0, 20))
+        button_frame.pack(pady=(0, 12))
         
         self.analyze_button = tk.Button(
             button_frame,
             text="🔍  ANALYZE LINK",
             command=self.analyze_url,
-            font=("Segoe UI", 14, "bold"),
+            font=("Segoe UI", 12, "bold"),
             bg="#00d4ff",
             fg="#0f2027",
             activebackground="#00ff88",
             activeforeground="#0f2027",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=40,
-            pady=15,
+            padx=30,
+            pady=10,
             borderwidth=0
         )
         self.analyze_button.pack(side=tk.LEFT, padx=5)
@@ -390,15 +425,15 @@ class LinkSafetyCheckerGUI:
             button_frame,
             text="📊  ANALYZE BATCH",
             command=self.analyze_batch,
-            font=("Segoe UI", 14, "bold"),
+            font=("Segoe UI", 12, "bold"),
             bg="#00d4ff",
             fg="#0f2027",
             activebackground="#00ff88",
             activeforeground="#0f2027",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=40,
-            pady=15,
+            padx=30,
+            pady=10,
             borderwidth=0
         )
         
@@ -407,15 +442,15 @@ class LinkSafetyCheckerGUI:
             button_frame,
             text="⛔ CANCEL",
             command=self.cancel_batch_processing,
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 11, "bold"),
             bg="#ff6b6b",
             fg="#ffffff",
             activebackground="#ff3366",
             activeforeground="#ffffff",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=30,
-            pady=15,
+            padx=25,
+            pady=10,
             borderwidth=0
         )
         
@@ -433,62 +468,79 @@ class LinkSafetyCheckerGUI:
         )
         self.result_card.pack(fill=tk.BOTH, expand=True)
         
-        # Result icon (hidden by default)
+        # Result icon (hidden by default) - smaller
         self.result_icon = tk.Label(
             self.result_card,
             text="",
-            font=("Segoe UI Emoji", 48),
+            font=("Segoe UI Emoji", 36),
             bg="#1a1a2e"
         )
-        self.result_icon.pack(pady=(20, 10))
+        self.result_icon.pack(pady=(12, 8))
         
-        # Result label
+        # Result label - dynamic wraplength
         self.result_label = tk.Label(
             self.result_card,
             text="",
-            font=("Segoe UI", 18, "bold"),
+            font=("Segoe UI", 16, "bold"),
             bg="#1a1a2e",
-            wraplength=600,
+            wraplength=500,
             justify=tk.CENTER
         )
-        self.result_label.pack(pady=(0, 10))
+        self.result_label.pack(pady=(0, 8))
         
-        # Details label
+        # Details label - dynamic wraplength
         self.details_label = tk.Label(
             self.result_card,
             text="",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 10),
             bg="#1a1a2e",
-            wraplength=600,
+            wraplength=500,
             justify=tk.CENTER,
             fg="#b8b8d1"
         )
-        self.details_label.pack(pady=(0, 15))
+        self.details_label.pack(pady=(0, 10))
         
-        # Timestamp label (Feature 5)
+        # Bind window resize to update wraplength dynamically
+        def update_wraplength(event=None):
+            try:
+                # Get actual main_frame width
+                main_frame_width = self.main_frame.winfo_width()
+                if main_frame_width > 1:  # Only update if frame is actually rendered
+                    # Calculate available width (account for padding ~40px)
+                    available_width = max(400, main_frame_width - 40)
+                    self.result_label.config(wraplength=available_width)
+                    self.details_label.config(wraplength=available_width)
+            except:
+                pass  # Ignore errors during initial setup
+        
+        # Update wraplength on window resize
+        self.main_frame.bind('<Configure>', update_wraplength)
+        self.root.bind('<Configure>', update_wraplength)
+        
+        # Timestamp label (Feature 5) - more compact
         self.timestamp_label = tk.Label(
             self.result_card,
             text="",
-            font=("Segoe UI", 9, "italic"),
+            font=("Segoe UI", 8, "italic"),
             bg="#1a1a2e",
             fg="#7f8c8d"
         )
         # Don't pack initially, will be shown after scan
         
-        # View Details button (Feature 4)
+        # View Details button (Feature 4) - more compact
         self.view_details_button = tk.Button(
             self.result_card,
             text="📋 View Details",
             command=self.toggle_threat_details,
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             bg="#2d2d44",
             fg="#00d4ff",
             activebackground="#00d4ff",
             activeforeground="#1a1a2e",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=20,
-            pady=8,
+            padx=15,
+            pady=6,
             borderwidth=0
         )
         # Don't pack initially, will be shown after scan
@@ -500,59 +552,59 @@ class LinkSafetyCheckerGUI:
         )
         self.threat_details_visible = False
         
-        # Threat details text widget with scrollbar
+        # Threat details text widget with scrollbar - more compact
         details_scroll_frame = tk.Frame(self.threat_details_frame, bg="#1a1a2e")
-        details_scroll_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        details_scroll_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=8)
         
         details_scrollbar = tk.Scrollbar(details_scroll_frame)
         details_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.threat_details_text = tk.Text(
             details_scroll_frame,
-            font=("Consolas", 10),
+            font=("Consolas", 9),
             bg="#2d2d44",
             fg="#ffffff",
             relief=tk.FLAT,
             wrap=tk.WORD,
-            height=12,
+            height=8,
             yscrollcommand=details_scrollbar.set,
             state=tk.DISABLED
         )
         self.threat_details_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         details_scrollbar.config(command=self.threat_details_text.yview)
         
-        # Copy Result button (initially hidden)
+        # Copy Result button (initially hidden) - more compact
         self.copy_result_button = tk.Button(
             self.result_card,
             text="📋 Copy Result",
             command=self.copy_result_to_clipboard,
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             bg="#2d2d44",
             fg="#00d4ff",
             activebackground="#00d4ff",
             activeforeground="#1a1a2e",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=20,
-            pady=10,
+            padx=15,
+            pady=6,
             borderwidth=0
         )
         # Don't pack initially, will be shown after scan
         
-        # Export button (Feature 7) - initially hidden
+        # Export button (Feature 7) - initially hidden - more compact
         self.export_button = tk.Button(
             self.result_card,
             text="📤 Export Result",
             command=self.export_result,
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             bg="#2d2d44",
             fg="#00ff88",
             activebackground="#00ff88",
             activeforeground="#1a1a2e",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=20,
-            pady=10,
+            padx=15,
+            pady=6,
             borderwidth=0
         )
         
@@ -608,35 +660,35 @@ class LinkSafetyCheckerGUI:
         
         self.batch_results_listbox = tk.Listbox(
             batch_scroll_frame,
-            font=("Consolas", 10),
+            font=("Consolas", 9),
             bg="#2d2d44",
             fg="#ffffff",
             selectbackground="#00d4ff",
             selectforeground="#0f2027",
             relief=tk.FLAT,
-            height=12,
+            height=10,
             yscrollcommand=batch_scrollbar.set
         )
         self.batch_results_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         batch_scrollbar.config(command=self.batch_results_listbox.yview)
         
-        # Export batch button
+        # Export batch button - more compact
         self.export_batch_button = tk.Button(
             self.batch_results_frame,
             text="📤 Export Batch Results",
             command=self.export_batch_results,
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 10, "bold"),
             bg="#00ff88",
             fg="#0f2027",
             activebackground="#00d4ff",
             activeforeground="#0f2027",
             cursor="hand2",
             relief=tk.FLAT,
-            padx=30,
-            pady=12,
+            padx=25,
+            pady=8,
             borderwidth=0
         )
-        self.export_batch_button.pack(pady=15)
+        self.export_batch_button.pack(pady=10)
         
         # Modern status bar
         self.status_label = tk.Label(
@@ -736,6 +788,20 @@ class LinkSafetyCheckerGUI:
             
             display_text = f"{icon} {url}\n   {time_str}"
             self.history_listbox.insert(tk.END, display_text)
+    
+    def clear_scan_history(self):
+        """Clear all scan history with confirmation."""
+        if messagebox.askyesno(
+            "Clear History",
+            "Are you sure you want to clear all scan history?\n\nThis action cannot be undone."
+        ):
+            if self.history.clear_history():
+                self.refresh_history()
+                self.load_recent_urls()  # Also refresh recent URLs dropdown
+                self.set_status("✓ Scan history cleared", "#00ff88")
+            else:
+                self.set_status("Failed to clear history", "#ff6b6b")
+                messagebox.showerror("Error", "Failed to clear scan history. Please try again.")
     
     def on_history_select(self, event):
         """Handle double-click on history item to re-analyze URL."""
@@ -857,7 +923,7 @@ Scanned: {timestamp}"""
             self.threat_details_visible = False
         else:
             # Show details
-            self.threat_details_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+            self.threat_details_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
             self.view_details_button.config(text="📋 Hide Details")
             self.threat_details_visible = True
     
@@ -1040,19 +1106,19 @@ Scanned: {timestamp}"""
             relative_time = self.format_relative_time(verdict.timestamp)
             timestamp_display += f" ({relative_time})"
         self.timestamp_label.config(text=timestamp_display)
-        self.timestamp_label.pack(pady=(0, 10))
+        self.timestamp_label.pack(pady=(0, 8))
         
         # Feature 4: Populate threat details
         self.display_threat_details(verdict)
         
         # Show view details button
-        self.view_details_button.pack(pady=(0, 10))
+        self.view_details_button.pack(pady=(0, 8))
         
-        # Show copy result button and export button
+        # Show copy result button and export button - more compact
         button_row = tk.Frame(self.result_card, bg="#1a1a2e")
-        button_row.pack(pady=(0, 20))
-        self.copy_result_button.pack(in_=button_row, side=tk.LEFT, padx=5)
-        self.export_button.pack(in_=button_row, side=tk.LEFT, padx=5)
+        button_row.pack(pady=(0, 12))
+        self.copy_result_button.pack(in_=button_row, side=tk.LEFT, padx=4)
+        self.export_button.pack(in_=button_row, side=tk.LEFT, padx=4)
     
     def display_error(self, error_message):
         """Display error message with modern styling."""
