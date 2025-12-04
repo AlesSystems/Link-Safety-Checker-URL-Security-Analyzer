@@ -14,6 +14,7 @@ from src.response_parser import parse_safe_browsing_response
 from src.url_analyzer import analyze_url_complete
 from src.gui_history import ScanHistory
 from src.gui_export import ExportManager
+from src.gui_share import ShareDialog
 from src.url_validator import URLValidator, URLValidationResult
 
 # Try to import pyperclip, fallback to tkinter clipboard if not available
@@ -458,15 +459,61 @@ class LinkSafetyCheckerGUI:
         self.analyze_button.bind('<Enter>', self.on_button_hover)
         self.analyze_button.bind('<Leave>', self.on_button_leave)
         
+        # Create scrollable result container
+        result_container = tk.Frame(main_frame, bg=self.bg_gradient_mid)
+        result_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Canvas for scrolling
+        self.result_canvas = tk.Canvas(
+            result_container,
+            bg=self.bg_gradient_mid,
+            highlightthickness=0
+        )
+        self.result_scrollbar = tk.Scrollbar(
+            result_container,
+            orient="vertical",
+            command=self.result_canvas.yview
+        )
+        
+        # Configure canvas scrolling
+        self.result_canvas.configure(yscrollcommand=self.result_scrollbar.set)
+        
+        # Pack scrollbar and canvas
+        self.result_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.result_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
         # Result card with modern styling
         self.result_card = tk.Frame(
-            main_frame,
+            self.result_canvas,
             bg="#1a1a2e",
             relief=tk.FLAT,
             highlightthickness=2,
             highlightbackground="#2d2d44"
         )
-        self.result_card.pack(fill=tk.BOTH, expand=True)
+        
+        # Create window in canvas
+        self.result_canvas_window = self.result_canvas.create_window(
+            (0, 0),
+            window=self.result_card,
+            anchor="nw"
+        )
+        
+        # Bind canvas resize to update scroll region
+        def configure_scroll_region(event=None):
+            self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
+            # Make sure the result_card width matches canvas width
+            canvas_width = self.result_canvas.winfo_width()
+            if canvas_width > 1:
+                self.result_canvas.itemconfig(self.result_canvas_window, width=canvas_width)
+        
+        self.result_card.bind("<Configure>", configure_scroll_region)
+        self.result_canvas.bind("<Configure>", configure_scroll_region)
+        
+        # Enable mousewheel scrolling
+        def on_mousewheel(event):
+            self.result_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        self.result_canvas.bind_all("<MouseWheel>", on_mousewheel)
         
         # Result icon (hidden by default) - smaller
         self.result_icon = tk.Label(
@@ -601,6 +648,23 @@ class LinkSafetyCheckerGUI:
             fg="#00ff88",
             activebackground="#00ff88",
             activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=15,
+            pady=6,
+            borderwidth=0
+        )
+        
+        # Share button (Feature 2: Share Results) - initially hidden
+        self.share_button = tk.Button(
+            self.result_card,
+            text="🔗 Share Result",
+            command=self.share_result,
+            font=("Segoe UI", 9),
+            bg="#2d2d44",
+            fg="#6366f1",  # Modern indigo primary color
+            activebackground="#6366f1",
+            activeforeground="#ffffff",
             cursor="hand2",
             relief=tk.FLAT,
             padx=15,
@@ -752,11 +816,17 @@ class LinkSafetyCheckerGUI:
         self.result_card.config(highlightbackground="#2d2d44")
         self.copy_result_button.pack_forget()  # Hide copy result button
         self.export_button.pack_forget()  # Hide export button
+        self.share_button.pack_forget()  # Hide share button
         self.timestamp_label.pack_forget()  # Hide timestamp
         self.view_details_button.pack_forget()  # Hide view details button
         self.threat_details_frame.pack_forget()  # Hide threat details
         self.threat_details_visible = False
         self.current_result = None
+        # Clean up button_row if it exists
+        if hasattr(self, 'button_row'):
+            self.button_row.pack_forget()
+            self.button_row.destroy()
+            delattr(self, 'button_row')
     
     def clear_all(self):
         """Clear all input and results, reset UI to initial state."""
@@ -926,6 +996,12 @@ Scanned: {timestamp}"""
             self.threat_details_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
             self.view_details_button.config(text="📋 Hide Details")
             self.threat_details_visible = True
+            
+            # Update scroll region and scroll to make details visible
+            self.root.update_idletasks()
+            self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
+            # Scroll to show the details section
+            self.result_canvas.yview_moveto(1.0)
     
     def display_threat_details(self, verdict):
         """Display detailed threat information in tree structure (Feature 4).
@@ -1114,11 +1190,23 @@ Scanned: {timestamp}"""
         # Show view details button
         self.view_details_button.pack(pady=(0, 8))
         
-        # Show copy result button and export button - more compact
-        button_row = tk.Frame(self.result_card, bg="#1a1a2e")
-        button_row.pack(pady=(0, 12))
-        self.copy_result_button.pack(in_=button_row, side=tk.LEFT, padx=4)
-        self.export_button.pack(in_=button_row, side=tk.LEFT, padx=4)
+        # Show copy result button, export button, and share button - more compact
+        # Clean up old button_row if it exists
+        if hasattr(self, 'button_row'):
+            self.button_row.pack_forget()
+            self.button_row.destroy()
+        
+        self.button_row = tk.Frame(self.result_card, bg="#1a1a2e")
+        self.button_row.pack(pady=(0, 12))
+        self.copy_result_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
+        self.export_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
+        self.share_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
+        
+        # Update canvas scroll region to fit all content
+        self.root.update_idletasks()
+        self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
+        # Reset scroll position to top for new results
+        self.result_canvas.yview_moveto(0.0)
     
     def display_error(self, error_message):
         """Display error message with modern styling."""
@@ -1257,6 +1345,10 @@ Scanned: {timestamp}"""
         self.details_label.config(text="")
         self.batch_results_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
+        # Update canvas scroll region
+        self.root.update_idletasks()
+        self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
+        
         # Disable controls
         self.batch_text.config(state=tk.DISABLED)
         self.batch_analyze_button.pack_forget()
@@ -1341,18 +1433,22 @@ Scanned: {timestamp}"""
         suspicious = sum(1 for r in self.batch_results if r['status'] == 'suspicious')
         dangerous = sum(1 for r in self.batch_results if r['status'] == 'dangerous')
         errors = sum(1 for r in self.batch_results if r['status'] == 'error')
-        
+
         summary_text = f"""Total URLs: {total}
 ✅ Safe: {safe}
 ⚠️ Suspicious: {suspicious}
 🚫 Dangerous: {dangerous}"""
         if errors > 0:
             summary_text += f"\n❌ Errors: {errors}"
-        
+
         self.batch_summary_label.config(text=summary_text)
         self.batch_progress_label.config(text="✓ Batch processing complete!", fg="#00ff88")
         self.set_status(f"Batch complete: {total} URLs scanned", "#00ff88")
         self.refresh_history()
+        
+        # Update canvas scroll region
+        self.root.update_idletasks()
+        self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
     
     def finish_batch_processing(self):
         """Clean up after batch processing."""
@@ -1455,6 +1551,24 @@ Scanned: {timestamp}"""
         else:
             self.set_status("Export failed", "#ff6b6b")
             messagebox.showerror("Export Error", "Failed to export result. Please try again.")
+    
+    def share_result(self):
+        """Share current scan result (Feature 2: Share Results)."""
+        if not self.current_result:
+            messagebox.showwarning("No Result", "No scan result available to share.")
+            return
+        
+        # Get the current URL and verdict
+        url = self.url_var.get().strip()
+        verdict = self.current_result.get('verdict')
+        
+        if not verdict:
+            messagebox.showerror("Error", "No verdict data available to share.")
+            return
+        
+        # Show share dialog
+        share_dialog = ShareDialog(self.root, url, verdict)
+        share_dialog.show()
     
     def export_batch_results(self):
         """Export batch scan results."""

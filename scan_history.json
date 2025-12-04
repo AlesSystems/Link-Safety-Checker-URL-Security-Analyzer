@@ -1,6 +1,50 @@
 {
   "scans": [
     {
+      "url": "https://google.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:32:49.578267",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
+      "url": "https://example.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:31:41.307267",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
+      "url": "https://example.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:30:36.751041",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
+      "url": "https://www.amazon.de/s?k=nike+zoom%C3%B6x&__mk_tr_TR=%C3%85M%C3%85%C5%BD%C3%95%C3%91&crid=4KHJ3AAMM1L5&sprefix=nike+zoom%C3%B6x%2Caps%2C101&ref=nb_sb_noss",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:30:26.212076",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
       "url": "https://www.amazon.de/s?k=nike+zoom%C3%B6x&__mk_tr_TR=%C3%85M%C3%85%C5%BD%C3%95%C3%91&crid=4KHJ3AAMM1L5&sprefix=nike+zoom%C3%B6x%2Caps%2C101&ref=nb_sb_noss",
       "status": "safe",
       "threat_types": [],

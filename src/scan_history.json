@@ -1,5 +1,39 @@
 {
-  "scans": [],
+  "scans": [
+    {
+      "url": "https://esmermarket.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:28:01.560505",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
+      "url": "https://google.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:25:05.795615",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    },
+    {
+      "url": "https://esmermarket.com",
+      "status": "safe",
+      "threat_types": [],
+      "timestamp": "2025-12-04T12:25:05.434989",
+      "result": {
+        "verdict": "safe",
+        "threat_types": [],
+        "rule_score": 0
+      }
+    }
+  ],
   "metadata": {
     "version": "1.0",
     "max_scans": 100
