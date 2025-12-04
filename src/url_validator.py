@@ -230,3 +230,129 @@ class URLValidator:
                 suggestions.append(f"Possible typo fix: {corrected_url}")
         
         return suggestions
+
+
+# Backward compatibility wrapper functions for existing tests and code
+def validate_url(url: str) -> Dict[str, Any]:
+    """Validate URL and return dictionary result (backward compatibility).
+    
+    This function validates the URL as-is without auto-formatting to match
+    the original behavior expected by tests.
+    
+    Args:
+        url: URL string to validate
+        
+    Returns:
+        Dictionary with validation results:
+        {
+            "is_valid": bool,
+            "errors": List[str],
+            "warnings": List[str],
+            "scheme": str or None,
+            "domain": str or None,
+            "url": str
+        }
+    """
+    errors = []
+    warnings = []
+    
+    if not url or not url.strip():
+        return {
+            "is_valid": False,
+            "errors": ["Empty URL."],
+            "warnings": [],
+            "scheme": None,
+            "domain": None,
+            "url": url
+        }
+    
+    url = url.strip()
+    
+    # Parse URL as-is (no auto-formatting for backward compatibility)
+    try:
+        parsed = urlparse(url)
+    except Exception as exc:
+        return {
+            "is_valid": False,
+            "errors": [f"Parse error: {exc}"],
+            "warnings": [],
+            "scheme": None,
+            "domain": None,
+            "url": url
+        }
+    
+    # Check for valid scheme
+    if not parsed.scheme:
+        errors.append("Missing scheme (e.g. http or https).")
+    elif parsed.scheme not in ['http', 'https']:
+        warnings.append(f"Suspicious scheme: {parsed.scheme}")
+    
+    # Check for valid domain/hostname
+    if not parsed.netloc:
+        errors.append("Missing domain (host).")
+    
+    # Check for invalid characters (whitespace, control chars)
+    invalid_chars_pattern = re.compile(r'[\s<>{}|\\^`"]')
+    if invalid_chars_pattern.search(url):
+        errors.append("URL contains invalid characters (whitespace or control chars).")
+    
+    # Check for multiple '//' segments (suspicious pattern)
+    if "://" in url:
+        after_scheme = url.split("://", 1)[1]
+        if "//" in after_scheme:
+            warnings.append("URL contains multiple '//' segments after the scheme, which is suspicious.")
+    else:
+        if url.count("//") > 1:
+            warnings.append("URL contains multiple '//' segments, which is suspicious.")
+    
+    # Check TLD
+    host = parsed.netloc.split(':')[0] if parsed.netloc else None
+    if host:
+        if "." not in host:
+            warnings.append("Domain has no dot; may be local or invalid.")
+        else:
+            tld = host.rsplit(".", 1)[1]
+            if not (2 <= len(tld) <= 24):
+                warnings.append(f"Suspicious top‑level domain: .{tld}")
+    
+    is_valid = len(errors) == 0
+    
+    return {
+        "is_valid": is_valid,
+        "errors": errors,
+        "warnings": warnings,
+        "scheme": parsed.scheme or None,
+        "domain": host or None,
+        "url": url
+    }
+
+
+def extract_domain(url: str) -> str:
+    """Extract domain from URL (backward compatibility).
+    
+    Args:
+        url: URL string
+        
+    Returns:
+        Domain name without port
+        
+    Raises:
+        ValueError: If URL doesn't have scheme and domain
+    """
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError("URL must include scheme and domain (e.g. 'https://example.com').")
+    return parsed.netloc.split(':')[0]
+
+
+def is_valid_url(url: str) -> bool:
+    """Simple URL validator (backward compatibility).
+    
+    Args:
+        url: URL string to validate
+        
+    Returns:
+        True if URL is valid, False otherwise
+    """
+    result = validate_url(url)  # Use backward-compatible validate_url
+    return result["is_valid"]
