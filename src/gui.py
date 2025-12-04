@@ -293,6 +293,61 @@ class LinkSafetyCheckerGUI:
         )
         self.clear_button.pack(side=tk.LEFT)
         
+        # Result action buttons row (Copy Result, Export, Share) - hidden initially
+        self.result_actions_row = tk.Frame(input_card, bg="#1a1a2e")
+        # Don't pack initially - will be shown after scan
+        
+        self.copy_result_button = tk.Button(
+            self.result_actions_row,
+            text="📋 Copy Result",
+            command=self.copy_result_to_clipboard,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#00d4ff",
+            activebackground="#00d4ff",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=15,
+            pady=8,
+            borderwidth=0
+        )
+        self.copy_result_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.export_button = tk.Button(
+            self.result_actions_row,
+            text="📤 Export Result",
+            command=self.export_result,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#00ff88",
+            activebackground="#00ff88",
+            activeforeground="#1a1a2e",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=15,
+            pady=8,
+            borderwidth=0
+        )
+        self.export_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.share_button = tk.Button(
+            self.result_actions_row,
+            text="🔗 Share Result",
+            command=self.share_result,
+            font=("Segoe UI", 10),
+            bg="#2d2d44",
+            fg="#6366f1",
+            activebackground="#6366f1",
+            activeforeground="#ffffff",
+            cursor="hand2",
+            relief=tk.FLAT,
+            padx=15,
+            pady=8,
+            borderwidth=0
+        )
+        self.share_button.pack(side=tk.LEFT)
+        
         # Mode toggle button (Feature 6 - Batch mode)
         self.mode_toggle_button = tk.Button(
             button_row,
@@ -620,57 +675,8 @@ class LinkSafetyCheckerGUI:
         self.threat_details_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         details_scrollbar.config(command=self.threat_details_text.yview)
         
-        # Copy Result button (initially hidden) - more compact
-        self.copy_result_button = tk.Button(
-            self.result_card,
-            text="📋 Copy Result",
-            command=self.copy_result_to_clipboard,
-            font=("Segoe UI", 9),
-            bg="#2d2d44",
-            fg="#00d4ff",
-            activebackground="#00d4ff",
-            activeforeground="#1a1a2e",
-            cursor="hand2",
-            relief=tk.FLAT,
-            padx=15,
-            pady=6,
-            borderwidth=0
-        )
-        # Don't pack initially, will be shown after scan
-        
-        # Export button (Feature 7) - initially hidden - more compact
-        self.export_button = tk.Button(
-            self.result_card,
-            text="📤 Export Result",
-            command=self.export_result,
-            font=("Segoe UI", 9),
-            bg="#2d2d44",
-            fg="#00ff88",
-            activebackground="#00ff88",
-            activeforeground="#1a1a2e",
-            cursor="hand2",
-            relief=tk.FLAT,
-            padx=15,
-            pady=6,
-            borderwidth=0
-        )
-        
-        # Share button (Feature 2: Share Results) - initially hidden
-        self.share_button = tk.Button(
-            self.result_card,
-            text="🔗 Share Result",
-            command=self.share_result,
-            font=("Segoe UI", 9),
-            bg="#2d2d44",
-            fg="#6366f1",  # Modern indigo primary color
-            activebackground="#6366f1",
-            activeforeground="#ffffff",
-            cursor="hand2",
-            relief=tk.FLAT,
-            padx=15,
-            pady=6,
-            borderwidth=0
-        )
+        # Note: Copy Result, Export, and Share buttons are now in the input card area
+        # They are defined in __init__ under result_actions_row
         
         # Batch results frame (Feature 6) - hidden by default
         self.batch_results_frame = tk.Frame(
@@ -814,9 +820,9 @@ class LinkSafetyCheckerGUI:
         self.result_label.config(text="", fg="#ffffff")
         self.details_label.config(text="", fg="#b8b8d1")
         self.result_card.config(highlightbackground="#2d2d44")
-        self.copy_result_button.pack_forget()  # Hide copy result button
-        self.export_button.pack_forget()  # Hide export button
-        self.share_button.pack_forget()  # Hide share button
+        # Hide result action buttons in input area
+        if hasattr(self, 'result_actions_row'):
+            self.result_actions_row.pack_forget()
         self.timestamp_label.pack_forget()  # Hide timestamp
         self.view_details_button.pack_forget()  # Hide view details button
         self.threat_details_frame.pack_forget()  # Hide threat details
@@ -1176,6 +1182,10 @@ Scanned: {timestamp}"""
             self.details_label.config(text="\n".join(details_parts), fg="#ff3366")
             self.result_card.config(highlightbackground="#ff3366")
         
+        # Show result action buttons in input area (under Copy URL and Clear buttons)
+        if hasattr(self, 'result_actions_row'):
+            self.result_actions_row.pack(fill=tk.X, padx=20, pady=(0, 12))
+        
         # Feature 5: Display timestamp with relative time
         timestamp_display = f"📅 Scanned: {timestamp_str}"
         if hasattr(verdict, 'timestamp'):
@@ -1184,27 +1194,20 @@ Scanned: {timestamp}"""
         self.timestamp_label.config(text=timestamp_display)
         self.timestamp_label.pack(pady=(0, 8))
         
-        # Feature 4: Populate threat details
+        # Feature 4: Populate threat details (after buttons so buttons stay visible)
         self.display_threat_details(verdict)
         
         # Show view details button
         self.view_details_button.pack(pady=(0, 8))
         
-        # Show copy result button, export button, and share button - more compact
-        # Clean up old button_row if it exists
-        if hasattr(self, 'button_row'):
-            self.button_row.pack_forget()
-            self.button_row.destroy()
-        
-        self.button_row = tk.Frame(self.result_card, bg="#1a1a2e")
-        self.button_row.pack(pady=(0, 12))
-        self.copy_result_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
-        self.export_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
-        self.share_button.pack(in_=self.button_row, side=tk.LEFT, padx=4)
-        
         # Update canvas scroll region to fit all content
         self.root.update_idletasks()
-        self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
+        bbox = self.result_canvas.bbox("all")
+        if bbox:
+            # Add padding at bottom to ensure all content is scrollable
+            self.result_canvas.configure(scrollregion=(bbox[0], bbox[1], bbox[2], bbox[3] + 20))
+        else:
+            self.result_canvas.configure(scrollregion=self.result_canvas.bbox("all"))
         # Reset scroll position to top for new results
         self.result_canvas.yview_moveto(0.0)
     
